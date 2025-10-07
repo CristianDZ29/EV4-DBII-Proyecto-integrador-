@@ -1,4 +1,4 @@
-# 🌿 Proyecto Integrador de Base de Datos II - Modelo Estrella y ETL (Jardinería)
+# Proyecto Integrador de Base de Datos II - Modelo Estrella y ETL (Jardinería)
 
 Este repositorio contiene el desarrollo del **proyecto integrador del curso Base de Datos II**, basado en la base de datos **Jardinería**.  
 El objetivo principal es diseñar un **modelo estrella (Data Mart)** para análisis de ventas, construir una **base de datos de staging** y desarrollar un proceso de **transformación y carga de datos (ETL)** hacia el modelo final.
