@@ -97,8 +97,11 @@ Como parte final del proyecto, se realizaron pruebas para verificar la **calidad
 
 Autores:
 
-- *Santiago Agudelo Escobar* 
-- *Kevin Saldarriaga Vélez*
-- *Cristian Andrei Rendón Alcaraz*
+*Santiago Agudelo Escobar* 
+
+*Kevin Saldarriaga Vélez*
+
+*Cristian Andrei Rendón Alcaraz*
+  
 Estudiantes de Ingeniería en Desarrollo de Software  -  IUDigital de Antioquia.
 📍 Medellín, Colombia
