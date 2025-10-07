@@ -1,0 +1,257 @@
+
+DROP DATABASE IF EXISTS staging_jardineria;
+CREATE DATABASE staging_jardineria;
+USE staging_jardineria;
+
+CREATE TABLE staging_oficina (
+    ID_oficina INT,
+    Descripcion VARCHAR(10) NOT NULL,
+    ciudad VARCHAR(30) NOT NULL,
+    pais VARCHAR(50) NOT NULL,
+    region VARCHAR(50),
+    codigo_postal VARCHAR(10) NOT NULL,
+    telefono VARCHAR(20) NOT NULL,
+    linea_direccion1 VARCHAR(50) NOT NULL,
+    linea_direccion2 VARCHAR(50),
+    
+
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (ID_oficina)
+);
+
+
+CREATE TABLE staging_empleado (
+    ID_empleado INT,
+    nombre VARCHAR(50) NOT NULL,
+    apellido1 VARCHAR(50) NOT NULL,
+    apellido2 VARCHAR(50),
+    extension VARCHAR(10) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    ID_oficina INT NOT NULL,
+    ID_jefe INT,
+    puesto VARCHAR(50),  
+    
+
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (ID_empleado)
+);
+
+
+CREATE TABLE staging_categoria_producto (
+    Id_Categoria INT,
+    Desc_Categoria VARCHAR(50) NOT NULL,
+    descripcion_texto TEXT,
+    descripcion_html TEXT,
+    imagen VARCHAR(256),
+    
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (Id_Categoria)
+);
+
+
+CREATE TABLE staging_cliente (
+    ID_cliente INT,
+    nombre_cliente VARCHAR(50) NOT NULL,
+    nombre_contacto VARCHAR(30),
+    apellido_contacto VARCHAR(30),
+    telefono VARCHAR(15) NOT NULL,
+    fax VARCHAR(15) NOT NULL,
+    linea_direccion1 VARCHAR(50) NOT NULL,
+    linea_direccion2 VARCHAR(50),
+    ciudad VARCHAR(50) NOT NULL,
+    region VARCHAR(50),
+    pais VARCHAR(50) NOT NULL,
+    codigo_postal VARCHAR(10),
+    ID_empleado_rep_ventas INT NOT NULL,
+    limite_credito NUMERIC(15,2),
+    
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (ID_cliente)
+);
+
+
+CREATE TABLE staging_producto (
+    ID_producto INT,
+    CodigoProducto VARCHAR(15) NOT NULL,
+    nombre VARCHAR(70) NOT NULL,
+    Categoria INT NOT NULL,
+    dimensiones VARCHAR(25),
+    proveedor VARCHAR(50),
+    descripcion TEXT,
+    cantidad_en_stock SMALLINT NOT NULL,
+    precio_venta NUMERIC(15,2) NOT NULL,
+    precio_proveedor NUMERIC(15,2),
+    
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (ID_producto)
+);
+
+CREATE TABLE staging_pedido (
+    ID_pedido INT,
+    fecha_pedido DATE NOT NULL,
+    fecha_esperada DATE NOT NULL,
+    fecha_entrega DATE,
+    estado VARCHAR(15) NOT NULL,
+    comentarios TEXT,
+    ID_cliente INT NOT NULL,
+
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (ID_pedido)
+);
+
+CREATE TABLE staging_detalle_pedido (
+    ID_detalle_pedido INT,
+    ID_pedido INT NOT NULL,
+    ID_producto INT NOT NULL,
+    cantidad INT NOT NULL,
+    precio_unidad NUMERIC(15,2) NOT NULL,
+    numero_linea SMALLINT NOT NULL,
+
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (ID_detalle_pedido)
+);
+
+CREATE TABLE staging_pago (
+    ID_pago INT,
+    ID_cliente INT NOT NULL,
+    forma_pago VARCHAR(40) NOT NULL,
+    id_transaccion VARCHAR(50) NOT NULL,
+    fecha_pago DATE NOT NULL,
+    total NUMERIC(15,2) NOT NULL,
+    
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    origen VARCHAR(50) DEFAULT 'jardineria_db',
+    hash_data VARCHAR(255),
+    
+    PRIMARY KEY (id_transaccion)
+);
+
+
+INSERT INTO staging_oficina 
+(ID_oficina, Descripcion, ciudad, pais, region, codigo_postal, telefono, linea_direccion1, linea_direccion2, origen, hash_data)
+SELECT 
+    ID_oficina, Descripcion, ciudad, pais, region, codigo_postal, telefono, linea_direccion1, linea_direccion2,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', Descripcion, ciudad, pais, region, codigo_postal, telefono, linea_direccion1, linea_direccion2))
+FROM jardineria.oficina;
+
+
+INSERT INTO staging_empleado 
+(ID_empleado, nombre, apellido1, apellido2, extension, email, ID_oficina, ID_jefe, puesto, origen, hash_data)
+SELECT 
+    ID_empleado, nombre, apellido1, apellido2, extension, email, ID_oficina, ID_jefe, puesto,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', nombre, apellido1, apellido2, extension, email, ID_oficina, ID_jefe, puesto))
+FROM jardineria.empleado;
+
+
+INSERT INTO staging_categoria_producto 
+(Id_Categoria, Desc_Categoria, descripcion_texto, descripcion_html, imagen, origen, hash_data)
+SELECT 
+    Id_Categoria, Desc_Categoria, descripcion_texto, descripcion_html, imagen,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', Desc_Categoria, descripcion_texto, descripcion_html, imagen))
+FROM jardineria.Categoria_producto;
+
+
+INSERT INTO staging_cliente 
+(ID_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, ID_empleado_rep_ventas, limite_credito, origen, hash_data)
+SELECT 
+    ID_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, ID_empleado_rep_ventas, limite_credito,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, ID_empleado_rep_ventas, limite_credito))
+FROM jardineria.cliente;
+
+INSERT INTO staging_producto 
+(ID_producto, CodigoProducto, nombre, Categoria, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor, origen, hash_data)
+SELECT 
+    ID_producto, CodigoProducto, nombre, Categoria, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', CodigoProducto, nombre, Categoria, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor))
+FROM jardineria.producto;
+
+
+INSERT INTO staging_pedido 
+(ID_pedido, fecha_pedido, fecha_esperada, fecha_entrega, estado, comentarios, ID_cliente, origen, hash_data)
+SELECT 
+    ID_pedido, fecha_pedido, fecha_esperada, fecha_entrega, estado, comentarios, ID_cliente,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', fecha_pedido, fecha_esperada, fecha_entrega, estado, comentarios, ID_cliente))
+FROM jardineria.pedido;
+
+
+INSERT INTO staging_detalle_pedido 
+(ID_detalle_pedido, ID_pedido, ID_producto, cantidad, precio_unidad, numero_linea, origen, hash_data)
+SELECT 
+    ID_detalle_pedido, ID_pedido, ID_producto, cantidad, precio_unidad, numero_linea,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', ID_pedido, ID_producto, cantidad, precio_unidad, numero_linea))
+FROM jardineria.detalle_pedido;
+
+
+INSERT INTO staging_pago 
+(ID_pago, ID_cliente, forma_pago, id_transaccion, fecha_pago, total, origen, hash_data)
+SELECT 
+    ID_pago, ID_cliente, forma_pago, id_transaccion, fecha_pago, total,
+    'jardineria_db',
+    MD5(CONCAT_WS('|', ID_cliente, forma_pago, id_transaccion, fecha_pago, total))
+FROM jardineria.pago;
+
+-- =============================================
+-- PASO 4: Validación de datos
+-- =============================================
+
+-- Conteo de registros por tabla
+SELECT 'staging_oficina' AS tabla, COUNT(*) AS total FROM staging_oficina
+UNION ALL
+SELECT 'staging_empleado', COUNT(*) FROM staging_empleado
+UNION ALL
+SELECT 'staging_categoria_producto', COUNT(*) FROM staging_categoria_producto
+UNION ALL
+SELECT 'staging_cliente', COUNT(*) FROM staging_cliente
+UNION ALL
+SELECT 'staging_producto', COUNT(*) FROM staging_producto
+UNION ALL
+SELECT 'staging_pedido', COUNT(*) FROM staging_pedido
+UNION ALL
+SELECT 'staging_detalle_pedido', COUNT(*) FROM staging_detalle_pedido
+UNION ALL
+SELECT 'staging_pago', COUNT(*) FROM staging_pago;
+
+-- Verificar que los metadatos se hayan cargado correctamente (ejemplo con cliente)
+SELECT 
+    COUNT(*) AS total,
+    COUNT(fecha_carga) AS con_fecha,
+    COUNT(origen) AS con_origen,
+    COUNT(hash_data) AS con_hash 
+FROM staging_cliente;
+
+-- Mostrar primeros 5 registros de cada tabla (opcional)
+SELECT * FROM staging_oficina LIMIT 5;
+SELECT * FROM staging_empleado LIMIT 5;
+SELECT * FROM staging_cliente LIMIT 5;
+SELECT * FROM staging_producto LIMIT 5;
+SELECT * FROM staging_pedido LIMIT 5;
+SELECT * FROM staging_detalle_pedido LIMIT 5;
+SELECT * FROM staging_pago LIMIT 5;

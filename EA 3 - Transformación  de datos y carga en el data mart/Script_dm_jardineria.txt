@@ -1,0 +1,214 @@
+DROP DATABASE IF EXISTS dm_jardineria;
+CREATE DATABASE dm_jardineria;
+USE dm_jardineria;
+
+CREATE TABLE dim_producto (
+    id_producto INT PRIMARY KEY,
+    codigo_producto VARCHAR(15),
+    nombre_producto VARCHAR(70),
+    categoria_nombre VARCHAR(50),
+    proveedor VARCHAR(50),
+    precio_venta DECIMAL(15,2),
+    margen DECIMAL(5,2) -- enriquecimiento: margen = (venta - proveedor) / venta
+);
+
+CREATE TABLE dim_cliente (
+    id_cliente INT PRIMARY KEY,
+    nombre_cliente VARCHAR(50),
+    ciudad VARCHAR(50),
+    region VARCHAR(50),
+    pais VARCHAR(50),
+    limite_credito DECIMAL(15,2)
+);
+
+CREATE TABLE dim_empleado (
+    id_empleado INT PRIMARY KEY,
+    nombre_completo VARCHAR(150),
+    puesto VARCHAR(50),
+    oficina_ciudad VARCHAR(30),
+    oficina_pais VARCHAR(50)
+);
+
+CREATE TABLE dim_tiempo (
+    fecha DATE PRIMARY KEY,
+    anio INT,
+    mes INT,
+    dia INT,
+    trimestre INT
+);
+
+CREATE TABLE hecho_ventas (
+    id_pedido INT,
+    id_producto INT,
+    id_cliente INT,
+    id_empleado INT,
+    fecha_pedido DATE,
+    cantidad INT,
+    precio_unitario DECIMAL(15,2),
+    total_linea DECIMAL(15,2), -- cantidad * precio_unitario
+    estado_pedido VARCHAR(15),
+    
+    -- Claves foráneas (lógicas, no obligatorias en Data Mart)
+    FOREIGN KEY (id_producto) REFERENCES dim_producto(id_producto),
+    FOREIGN KEY (id_cliente) REFERENCES dim_cliente(id_cliente),
+    FOREIGN KEY (id_empleado) REFERENCES dim_empleado(id_empleado),
+    FOREIGN KEY (fecha_pedido) REFERENCES dim_tiempo(fecha)
+);
+
+-- Transformar y Cargar los datos desde Staging al Data Mart
+
+INSERT INTO dim_producto (
+    id_producto, codigo_producto, nombre_producto, categoria_nombre, proveedor, precio_venta, margen
+)
+SELECT 
+    p.ID_producto,
+    p.CodigoProducto,
+    p.nombre,
+    COALESCE(cp.Desc_Categoria, 'Sin categoría'), -- manejo de NULL
+    p.proveedor,
+    p.precio_venta,
+    CASE 
+        WHEN p.precio_venta > 0 THEN ROUND((p.precio_venta - COALESCE(p.precio_proveedor, 0)) / p.precio_venta * 100, 2)
+        ELSE 0 
+    END AS margen
+FROM staging_jardineria.staging_producto p
+LEFT JOIN staging_jardineria.staging_categoria_producto cp 
+    ON p.Categoria = cp.Id_Categoria; -- LEFT JOIN para no perder productos
+
+
+INSERT INTO dim_cliente (
+    id_cliente, nombre_cliente, ciudad, region, pais, limite_credito
+)
+SELECT 
+    ID_cliente,
+    nombre_cliente,
+    ciudad,
+    region,
+    pais,
+    limite_credito
+FROM staging_jardineria.staging_cliente;
+
+INSERT INTO dim_empleado (
+    id_empleado, nombre_completo, puesto, oficina_ciudad, oficina_pais
+)
+SELECT 
+    e.ID_empleado,
+    CONCAT(e.nombre, ' ', e.apellido1, IFNULL(CONCAT(' ', e.apellido2), '')) AS nombre_completo,
+    e.puesto,
+    o.ciudad AS oficina_ciudad,
+    o.pais AS oficina_pais
+FROM staging_jardineria.staging_empleado e
+JOIN staging_jardineria.staging_oficina o 
+    ON e.ID_oficina = o.ID_oficina;
+    
+INSERT INTO dim_tiempo (fecha, anio, mes, dia, trimestre)
+SELECT DISTINCT
+    fecha_pedido,
+    YEAR(fecha_pedido),
+    MONTH(fecha_pedido),
+    DAY(fecha_pedido),
+    QUARTER(fecha_pedido)
+FROM staging_jardineria.staging_pedido;
+
+INSERT INTO hecho_ventas (
+    id_pedido, id_producto, id_cliente, id_empleado, fecha_pedido,
+    cantidad, precio_unitario, total_linea, estado_pedido
+)
+SELECT 
+    dp.ID_pedido,
+    dp.ID_producto,
+    p.ID_cliente,
+    c.ID_empleado_rep_ventas AS id_empleado,
+    p.fecha_pedido,
+    dp.cantidad,
+    dp.precio_unidad,
+    dp.cantidad * dp.precio_unidad AS total_linea,
+    p.estado
+FROM staging_jardineria.staging_detalle_pedido dp
+JOIN staging_jardineria.staging_pedido p 
+    ON dp.ID_pedido = p.ID_pedido
+JOIN staging_jardineria.staging_cliente c 
+    ON p.ID_cliente = c.ID_cliente;
+    
+-- Transformaciones aplicadas: 
+-- Enriquecimiento: Cálculo del margen de ganancia en productos.
+-- Normalización: Unificación del nombre del empleado (nombre_completo).
+-- Limpieza: Uso de COALESCE para evitar errores por NULL en precio_proveedor.
+-- Integridad: Solo se cargan registros que tienen relación válida (joins).  
+
+-- Análisis para la toma de decisiones 
+
+-- Producto más vendido (por unidades)
+SELECT 
+    dp.nombre_producto,
+    dp.categoria_nombre,
+    SUM(hv.cantidad) AS total_unidades_vendidas
+FROM hecho_ventas hv
+JOIN dim_producto dp ON hv.id_producto = dp.id_producto
+GROUP BY dp.id_producto, dp.nombre_producto, dp.categoria_nombre
+ORDER BY total_unidades_vendidas DESC
+LIMIT 1;
+
+-- Producto más vendido (por ingresos)
+SELECT 
+    dp.nombre_producto,
+    dp.categoria_nombre,
+    SUM(hv.total_linea) AS total_ingresos
+FROM hecho_ventas hv
+JOIN dim_producto dp ON hv.id_producto = dp.id_producto
+GROUP BY dp.id_producto, dp.nombre_producto, dp.categoria_nombre
+ORDER BY total_ingresos DESC
+LIMIT 1;
+
+-- Cliente con mayor volumen de compras
+SELECT 
+    dc.nombre_cliente,
+    dc.pais,
+    SUM(hv.total_linea) AS total_comprado
+FROM hecho_ventas hv
+JOIN dim_cliente dc ON hv.id_cliente = dc.id_cliente
+GROUP BY dc.id_cliente, dc.nombre_cliente, dc.pais
+ORDER BY total_comprado DESC
+LIMIT 1;
+
+-- Empleado con más ventas (en valor)
+SELECT 
+    de.nombre_completo,
+    de.oficina_ciudad,
+    SUM(hv.total_linea) AS total_ventas
+FROM hecho_ventas hv
+JOIN dim_empleado de ON hv.id_empleado = de.id_empleado
+GROUP BY de.id_empleado, de.nombre_completo, de.oficina_ciudad
+ORDER BY total_ventas DESC
+LIMIT 1;
+
+-- Ventas por trimestre
+SELECT 
+    dt.anio,
+    dt.trimestre,
+    SUM(hv.total_linea) AS ingresos_trimestre
+FROM hecho_ventas hv
+JOIN dim_tiempo dt ON hv.fecha_pedido = dt.fecha
+GROUP BY dt.anio, dt.trimestre
+ORDER BY dt.anio, dt.trimestre;
+
+-- Calidad de Datos
+-- Limpieza: Se eliminaron dependencias de claves foráneas en staging para evitar fallos en la carga.
+-- Normalización: Se unificaron nombres y se estandarizaron formatos (ej: nombre completo).
+-- Enriquecimiento: Se agregó el margen de ganancia, una métrica clave para análisis de rentabilidad.
+-- Validación: Todos los INSERT usan JOIN para asegurar que solo se carguen datos coherentes.
+
+-- Verificar conteo en dimensión producto
+SELECT COUNT(*) FROM dm_jardineria.dim_producto;
+
+-- Verificar que el margen se calculó correctamente
+SELECT nombre_producto, precio_venta, margen
+FROM dm_jardineria.dim_producto
+LIMIT 5;
+
+-- Verificar que el hecho de ventas tiene registros
+SELECT COUNT(*) FROM dm_jardineria.hecho_ventas;
+
+-- Verificar integridad: todos los pedidos en staging tienen representación en el hecho
+SELECT COUNT(DISTINCT ID_pedido) FROM staging_jardineria.staging_pedido;
+SELECT COUNT(DISTINCT id_pedido) FROM dm_jardineria.hecho_ventas;
